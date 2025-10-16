@@ -5,7 +5,7 @@ require('dotenv').config({ override: true });
 
 const CLIENT_ID = (process.env.SPOTIFY_CLIENT_ID || '').trim();
 const CLIENT_SECRET = (process.env.SPOTIFY_CLIENT_SECRET || '').trim();
-const LASTFM_API_KEY = process.env.LASTFM_API_KEY;
+const LASTFM_API_KEY = (process.env.LASTFM_API_KEY || '').trim();
 
 const app = express();
 app.use(cors());
@@ -76,6 +76,10 @@ app.get('/api/lastfm', async (req, res) => {
             return res.status(400).json({ error: 'method and user are required' });
         }
 
+        if (!LASTFM_API_KEY) {
+            return res.status(500).json({ error: 'Server misconfiguration: LASTFM_API_KEY is missing' });
+        }
+
         const url = new URL('https://ws.audioscrobbler.com/2.0/');
         url.searchParams.set('method', method);
         url.searchParams.set('user', user);
@@ -86,10 +90,13 @@ app.get('/api/lastfm', async (req, res) => {
         if (period) url.searchParams.set('period', period);
 
         const response = await axios.get(url.toString());
-        res.json(response.data);
+        // Forward Last.fm status and payload
+        return res.status(response.status).json(response.data);
     } catch (error) {
-        console.error('Last.fm error:', error.response?.data || error.message);
-        res.status(500).json({ error: 'Failed to fetch from Last.fm' });
+        const status = error.response?.status || 500;
+        const data = error.response?.data || { error: error.message };
+        console.error('Last.fm error:', status, data);
+        return res.status(status).json(data);
     }
 });
 
